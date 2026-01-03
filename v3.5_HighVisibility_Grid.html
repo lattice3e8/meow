@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N×N 強化格線螢光網格 (v3.5)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h2 { color: #333; margin-bottom: 10px; }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 60px;
+            font-size: 16px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: bold;
+        }
+        button:hover { background-color: #0056b3; }
+        
+        button.mode-toggle {
+            background-color: #f8f9fa;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+        button.mode-toggle.active-dot {
+            border-color: #007bff;
+            color: #007bff;
+            background-color: #e7f1ff;
+        }
+        button.mode-toggle.active-highlighter {
+            border-color: #ffcc00;
+            color: #775500;
+            background-color: #ffffd0;
+        }
+
+        button.clear { background-color: #6c757d; }
+        button.download { background-color: #28a745; }
+
+        /* --- 網格顯示核心修正 --- */
+        #grid-container {
+            display: grid;
+            gap: 0; /* 關閉間隙，使用邊框 */
+            background-color: #fff; 
+            border: 1px solid #888; /* 最外框 */
+            user-select: none;
+            margin-bottom: 30px;
+        }
+
+        .cell {
+            width: 40px;
+            height: 40px;
+            background-color: white;
+            /* 強化內部格線 */
+            border: 1px solid #ccc; 
+            box-sizing: border-box; /* 極重要：邊框包含在寬度內 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+        }
+        /* 滑鼠經過時稍微加深格線顏色 */
+        .cell:hover { 
+            border-color: #999;
+            z-index: 5; /* 確保邊框變色時不會被隔壁遮住 */
+            filter: brightness(0.98);
+        }
+        
+        /* 螢光黃底色：確保不遮蓋邊框 */
+        .cell.highlighted {
+            background-color: #ffff00 !important;
+        }
+
+        /* 藍點 */
+        .dot {
+            width: 22px;
+            height: 22px;
+            background-color: #007bff;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>N×N 強化格線螢光網格工具 (v3.5)</h2>
+
+    <div class="controls">
+        <label>N = <input type="number" id="n-input" value="10" min="2" max="100"></label>
+        
+        <button class="mode-toggle active-dot" id="btn-dot" onclick="setMode('dot')">🔵 點位模式</button>
+        <button class="mode-toggle" id="btn-highlighter" onclick="setMode('highlighter')">🖍️ 螢光筆模式</button>
+        
+        <button onclick="initGrid()">重置</button>
+        <button class="clear" onclick="clearPoints()">清空</button>
+        <button class="download" onclick="downloadImage()">⬇ 下載圖片</button>
+    </div>
+
+    <div id="grid-container"></div>
+
+    <script>
+        let N = 10;
+        let gridState = []; 
+        let currentMode = 'dot';
+
+        window.onload = initGrid;
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btn-dot').classList.toggle('active-dot', mode === 'dot');
+            document.getElementById('btn-highlighter').classList.toggle('active-highlighter', mode === 'highlighter');
+        }
+
+        function initGrid() {
+            const input = document.getElementById('n-input');
+            N = parseInt(input.value) || 10;
+            gridState = Array(N).fill().map(() => Array(N).fill(null).map(() => ({ dot: false, highlight: false })));
+            renderGrid();
+        }
+
+        function clearPoints() {
+            gridState.forEach(row => row.forEach(cell => { cell.dot = false; cell.highlight = false; }));
+            renderGrid();
+        }
+
+        function renderGrid() {
+            const container = document.getElementById('grid-container');
+            container.innerHTML = '';
+            container.style.gridTemplateColumns = `repeat(${N}, 40px)`;
+
+            for (let y = 0; y < N; y++) {
+                for (let x = 0; x < N; x++) {
+                    const cellEl = document.createElement('div');
+                    cellEl.className = 'cell';
+                    
+                    const state = gridState[y][x];
+                    if (state.highlight) cellEl.classList.add('highlighted');
+                    if (state.dot) {
+                        const dotEl = document.createElement('div');
+                        dotEl.className = 'dot';
+                        cellEl.appendChild(dotEl);
+                    }
+                    
+                    cellEl.onclick = () => toggleCell(x, y);
+                    container.appendChild(cellEl);
+                }
+            }
+        }
+
+        function toggleCell(x, y) {
+            const state = gridState[y][x];
+            const index = y * N + x;
+            const cellEl = document.getElementById('grid-container').children[index];
+
+            if (currentMode === 'dot') {
+                state.dot = !state.dot;
+            } else {
+                state.highlight = !state.highlight;
+            }
+            
+            // 局部更新樣式，不重新 renderGrid
+            cellEl.className = 'cell' + (state.highlight ? ' highlighted' : '');
+            cellEl.innerHTML = '';
+            if (state.dot) {
+                const dotEl = document.createElement('div');
+                dotEl.className = 'dot';
+                cellEl.appendChild(dotEl);
+            }
+        }
+
+        function downloadImage() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const cellSize = 60; 
+            const padding = 20; 
+            const totalSize = N * cellSize + padding * 2;
+
+            canvas.width = totalSize;
+            canvas.height = totalSize;
+
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 畫螢光黃底色
+            for (let y = 0; y < N; y++) {
+                for (let x = 0; x < N; x++) {
+                    if (gridState[y][x].highlight) {
+                        ctx.fillStyle = "#ffff00";
+                        ctx.fillRect(padding + x * cellSize, padding + y * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+
+            // 2. 畫網格線 (下載時使用深灰色，確保列印也清晰)
+            ctx.strokeStyle = "#888888";
+            ctx.lineWidth = 2;
+            for (let i = 0; i <= N; i++) {
+                ctx.beginPath();
+                ctx.moveTo(padding + i * cellSize, padding);
+                ctx.lineTo(padding + i * cellSize, padding + N * cellSize);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(padding, padding + i * cellSize);
+                ctx.lineTo(padding + N * cellSize, padding + i * cellSize);
+                ctx.stroke();
+            }
+
+            // 3. 畫藍色點點
+            const dotRadius = cellSize * 0.35;
+            for (let y = 0; y < N; y++) {
+                for (let x = 0; x < N; x++) {
+                    if (gridState[y][x].dot) {
+                        const cx = padding + x * cellSize + cellSize / 2;
+                        const cy = padding + y * cellSize + cellSize / 2;
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
+                        ctx.fillStyle = "#007bff";
+                        ctx.fill();
+                        ctx.strokeStyle = "white";
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                }
+            }
+            
+            const link = document.createElement('a');
+            link.download = `clear_grid_N${N}.png`; 
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        }
+    </script>
+</body>
+</html>
